@@ -188,3 +188,48 @@ class BoundedOfflineInput(unittest.TestCase):
                              "--method", "read_profile", "--max-gas-yocto", str(10**23)])
         self.assertEqual(code, 2, "large untrusted fixture cannot be silently accepted")
         self.assertEqual(json.loads(out.getvalue())["decision"], "UNVERIFIED_RPC_RESPONSE")
+
+
+class AmbiguousRpcEnvelope(unittest.TestCase):
+    """Contradictory/untrusted provider JSON must never look policy-compatible."""
+
+    def test_result_plus_error_cannot_be_treated_as_valid_key_evidence(self):
+        data = envelope()
+        data["error"] = {"code": -32000, "message": "permission unavailable"}
+        report = assess_rpc(data, receiver=RECEIVER,
+                            allowed_methods=("read_profile",),
+                            max_gas_allowance_yocto=10**23)
+        self.assertEqual(report["decision"], "UNVERIFIED_RPC_RESPONSE")
+        self.assertFalse(report["trade_authorized"])
+
+    def test_duplicate_permission_key_in_file_fails_closed(self):
+        from contextlib import redirect_stdout
+        from pathlib import Path
+        from tempfile import TemporaryDirectory
+        raw = json.dumps(envelope())
+        duplicated = raw.replace('"permission": ',
+                                 '"permission": "FullAccess", "permission": ', 1)
+        self.assertNotEqual(raw, duplicated)
+        with TemporaryDirectory() as folder:
+            path = Path(folder) / "untrusted.json"
+            path.write_text(duplicated, encoding="utf-8")
+            output = io.StringIO()
+            with redirect_stdout(output):
+                status = main(["--fixture", str(path), "--receiver", RECEIVER,
+                               "--method", "read_profile", "--max-gas-yocto",
+                               str(10**23)])
+        self.assertEqual(status, 2)
+        self.assertEqual(json.loads(output.getvalue())["decision"],
+                         "UNVERIFIED_RPC_RESPONSE")
+
+    def test_duplicate_permission_key_in_rpc_fails_closed(self):
+        raw = json.dumps(envelope())
+        duplicated = raw.replace('"permission": ',
+                                 '"permission": "FullAccess", "permission": ', 1)
+        class Response:
+            status = 200
+            def __enter__(self): return self
+            def __exit__(self, *_args): return None
+            def read(self, _n=-1): return duplicated.encode("utf-8")
+        with self.assertRaisesRegex(RuntimeError, "RPC_UNAVAILABLE"):
+            fetch_testnet_key(ACCOUNT, KEY, opener=lambda *a, **kw: Response())

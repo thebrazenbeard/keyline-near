@@ -75,13 +75,24 @@ def assess_permission(permission, *, receiver, allowed_methods, max_gas_allowanc
             "allowance_kind": "GAS_ONLY_NOT_ASSET_SPEND_LIMIT"}
 
 
+def _unique_object_pairs(pairs):
+    """Reject ambiguous untrusted JSON keys instead of silently taking the last."""
+    obj = {}
+    for key, value in pairs:
+        if key in obj:
+            raise ValueError("duplicate JSON object key")
+        obj[key] = value
+    return obj
+
+
 def assess_rpc(payload, *, receiver, allowed_methods, max_gas_allowance_yocto,
                provenance="UNATTESTED_RPC_RESULT"):
     """Check NEAR view_access_key JSON-RPC envelope then permission shape."""
     failure = {"decision": "UNVERIFIED_RPC_RESPONSE", "findings": ["RPC_RESPONSE_UNVERIFIED"],
                "trade_authorized": False, "rpc_cryptographic_proof_verified": False,
                "data_provenance": provenance}
-    if type(payload) is not dict or payload.get("jsonrpc") != "2.0" or payload.get("id") != REQUEST_ID:
+    if (type(payload) is not dict or payload.get("jsonrpc") != "2.0" or
+            payload.get("id") != REQUEST_ID or "error" in payload):
         return failure
     body = payload.get("result")
     if (type(body) is not dict or type(body.get("block_height")) is not int or
@@ -127,7 +138,7 @@ def fetch_testnet_key(account, public_key, *, opener=None):
             raw = resp.read(MAX_RPC_BYTES + 1)
         if len(raw) > MAX_RPC_BYTES:
             raise RuntimeError("RPC_UNAVAILABLE")
-        payload = json.loads(raw)
+        payload = json.loads(raw, object_pairs_hook=_unique_object_pairs)
         if type(payload) is not dict:
             raise RuntimeError("RPC_UNAVAILABLE")
         return payload
@@ -164,7 +175,7 @@ def main(argv=None):
                 raw = f.read(MAX_RPC_BYTES + 1)
             if len(raw) > MAX_RPC_BYTES:
                 raise ValueError("oversized fixture")
-            data = json.loads(raw)
+            data = json.loads(raw, object_pairs_hook=_unique_object_pairs)
         except (OSError, ValueError):
             print(json.dumps({"decision":"UNVERIFIED_RPC_RESPONSE","trade_authorized":False,
                               "data_provenance":"MALFORMED_FIXTURE"}, sort_keys=True))
