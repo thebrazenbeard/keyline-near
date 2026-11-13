@@ -23,6 +23,8 @@ python -B demo_server.py --port 0
 
 Every JSON response reports `trade_authorized=false`, `signing_attempted=false`, and `contract_effects_verified=false`. All browser scenarios use **fictional local data** and make no external requests.
 
+[View real browser screenshots and reproducible demo evidence](docs/DEMO_EVIDENCE.md) — the blocked receiver-injection case and scoped-key review were captured from this public source, not drawn as mockups.
+
 ## Run the offline CLI
 
 ```sh
