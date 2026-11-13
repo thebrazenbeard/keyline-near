@@ -48,11 +48,11 @@ NEAR distinguishes `FullAccess` keys from `FunctionCall` access keys with a part
 - The five browser examples are fictional: they demonstrate policy behavior, not a real prompt-injection experiment or an audited wallet.
 - The prototype uses only the Python standard library. Source code is published under the [MIT License](LICENSE); this does not certify wallet safety.
 
-## Hackathon release requirements
+## Hackathon submission status
 
-This repository has been approved for **public code release under MIT**, but **has not been submitted to the NEAR Hackathon**. A human must separately publish an actual demo post on X meeting the organizer's requirements, choose their mainnet NEAR payout account, supply contact and team details, and approve the exact final application before **November 14, 2026, 23:59 UTC**. Check https://nearhackathon.com/HACKATHON.md for current rules. No prize or earnings are implied by this repository.
+**Submitted on November 13, 2026** to the NEAR HACKATHON AI Security & Defense track. The human-approved, one-time entry to the organizer's official application API returned **HTTP 201 Created**, which the [organizer's rules](https://nearhackathon.com/HACKATHON.md) define as a saved submission. The entry links this public MIT repository and the [human-published X demonstration with native video](https://x.com/grimcandor/status/2121198629926965283). Submission is **not** a judging decision, prize award, proof of security, or revenue. The announced development deadline is November 14, 2026 at 23:59 UTC.
 ## Demo video
 
 A [24-second silent KEYLINE walkthrough](demo/KEYLINE_hackathon_demo.mp4) shows real localhost browser outcomes for the five fictional access-key scenarios. The video is assembled from actual browser captures, not a recording of live funds, a wallet, or a real agent. The scoped case is review-only; unsafe receiver switching, FullAccess, wildcard grants, and unbounded gas are blocked.
 
-The project has **not** been submitted to the NEAR Hackathon by publishing this video here. The event also requires a public demo post on X, published by the human, plus a completed and explicitly confirmed final entry.
+Publishing this video in the repository alone did not submit the project; the separate organizer application has now been saved (HTTP 201). The public [X demo post](https://x.com/grimcandor/status/2121198629926965283) contains the attached video. This is still a read-only, fictional-scenario demonstration, not a live wallet security audit.
