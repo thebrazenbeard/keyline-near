@@ -1,0 +1,16 @@
+{
+  "jsonrpc": "2.0",
+  "id": "near-key-audit-v0",
+  "result": {
+    "block_height": 123456,
+    "block_hash": "SYNTHETIC_BLOCK_HASH_NOT_ON_CHAIN",
+    "nonce": 42,
+    "permission": {
+      "FunctionCall": {
+        "receiver_id": "safe.contract.testnet",
+        "method_names": ["read_profile"],
+        "allowance": "10000000000000000000000"
+      }
+    }
+  }
+}
