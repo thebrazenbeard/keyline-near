@@ -51,3 +51,8 @@ NEAR distinguishes `FullAccess` keys from `FunctionCall` access keys with a part
 ## Hackathon release requirements
 
 This repository has been approved for **public code release under MIT**, but **has not been submitted to the NEAR Hackathon**. A human must separately publish an actual demo post on X meeting the organizer's requirements, choose their mainnet NEAR payout account, supply contact and team details, and approve the exact final application before **November 14, 2026, 23:59 UTC**. Check https://nearhackathon.com/HACKATHON.md for current rules. No prize or earnings are implied by this repository.
+## Demo video
+
+A [24-second silent KEYLINE walkthrough](demo/KEYLINE_hackathon_demo.mp4) shows real localhost browser outcomes for the five fictional access-key scenarios. The video is assembled from actual browser captures, not a recording of live funds, a wallet, or a real agent. The scoped case is review-only; unsafe receiver switching, FullAccess, wildcard grants, and unbounded gas are blocked.
+
+The project has **not** been submitted to the NEAR Hackathon by publishing this video here. The event also requires a public demo post on X, published by the human, plus a completed and explicitly confirmed final entry.
