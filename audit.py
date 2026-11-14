@@ -14,7 +14,14 @@ from urllib import error, request
 ENDPOINT = "https://test.rpc.fastnear.com"
 REQUEST_ID = "near-key-audit-v0"
 MAX_RPC_BYTES = 262144
-ACCOUNT_RE = re.compile(r"[a-z0-9_.-]{2,64}\Z")
+# NEAR account identifiers allow separators only between alphanumerics.
+# Source: nearcore/docs/DataStructures/Account.md (length 2..64).
+ACCOUNT_RE = re.compile(r"[a-z0-9]+(?:[-_][a-z0-9]+)*(?:\.[a-z0-9]+(?:[-_][a-z0-9]+)*)*\Z")
+
+
+def _valid_account_id(value):
+    return type(value) is str and 2 <= len(value) <= 64 and ACCOUNT_RE.fullmatch(value) is not None
+
 METHOD_RE = re.compile(r"[A-Za-z0-9_]{1,64}\Z")
 PUBKEY_RE = re.compile(r"(?:ed25519|secp256k1):[1-9A-HJ-NP-Za-km-z]{32,90}\Z")
 
@@ -26,19 +33,23 @@ def _unknown():
             "allowance_kind": "GAS_ONLY_NOT_ASSET_SPEND_LIMIT"}
 
 
-def assess_permission(permission, *, receiver, allowed_methods, max_gas_allowance_yocto):
-    """Compare *one selected agent key* against declared reviewer policy.
-
-    POLICY_MATCH_UNVERIFIED is a permission-shape observation, never approval
-    of a contract's own asset transfers, delegated identity, or settlement.
-    """
-    if not isinstance(receiver, str) or not ACCOUNT_RE.fullmatch(receiver):
+def _validate_review_policy(receiver, allowed_methods, max_gas_allowance_yocto):
+    """Reject invalid reviewer policy before even optional public RPC reads."""
+    if not _valid_account_id(receiver):
         raise ValueError("invalid expected receiver")
     if (not isinstance(allowed_methods, tuple) or not allowed_methods or
             any(type(m) is not str or not METHOD_RE.fullmatch(m) for m in allowed_methods)):
         raise ValueError("allowed methods must be a nonempty tuple of method names")
     if type(max_gas_allowance_yocto) is not int or max_gas_allowance_yocto < 0:
         raise ValueError("invalid gas cap")
+
+def assess_permission(permission, *, receiver, allowed_methods, max_gas_allowance_yocto):
+    """Compare *one selected agent key* against declared reviewer policy.
+
+    POLICY_MATCH_UNVERIFIED is a permission-shape observation, never approval
+    of a contract's own asset transfers, delegated identity, or settlement.
+    """
+    _validate_review_policy(receiver, allowed_methods, max_gas_allowance_yocto)
     if permission in ("FullAccess", "GasKeyFullAccess"):
         return {"decision": "REVIEW_REQUIRED", "findings": ["FULL_ACCESS_AGENT_KEY"],
                 "trade_authorized": False, "private_key_inspected": False,
@@ -51,7 +62,7 @@ def assess_permission(permission, *, receiver, allowed_methods, max_gas_allowanc
     observed_receiver = grant["receiver_id"]
     methods = grant["method_names"]
     raw_allowance = grant["allowance"]
-    if (type(observed_receiver) is not str or not ACCOUNT_RE.fullmatch(observed_receiver) or
+    if (not _valid_account_id(observed_receiver) or
             type(methods) is not list or any(type(m) is not str or not METHOD_RE.fullmatch(m) for m in methods)):
         return _unknown()
     if raw_allowance is not None and (type(raw_allowance) is not str or
@@ -117,7 +128,7 @@ class _DenyRedirect(request.HTTPRedirectHandler):
 
 def fetch_testnet_key(account, public_key, *, opener=None):
     """One bounded, opt-in, public-key-specific testnet RPC read, no credentials."""
-    if type(account) is not str or not ACCOUNT_RE.fullmatch(account) or not account.endswith(".testnet"):
+    if not _valid_account_id(account) or not account.endswith(".testnet"):
         raise ValueError("testnet account required")
     if type(public_key) is not str or not PUBKEY_RE.fullmatch(public_key):
         raise ValueError("valid NEAR public key required")
@@ -159,6 +170,17 @@ def main(argv=None):
     parser.add_argument("--method", required=True, action="append", help="Permitted method (repeat for more)")
     parser.add_argument("--max-gas-yocto", type=int, required=True, help="Maximum permitted gas allowance in yoctoNEAR")
     args = parser.parse_args(argv)
+    # Validate declared intent before the opt-in live request. Invalid
+    # reviewer input must never trigger RPC or an unhandled exception.
+    try:
+        _validate_review_policy(args.receiver, tuple(args.method), args.max_gas_yocto)
+    except ValueError:
+        print(json.dumps({"decision": "INVALID_REVIEW_POLICY",
+                          "trade_authorized": False,
+                          "signing_attempted": False,
+                          "rpc_cryptographic_proof_verified": False},
+                         sort_keys=True))
+        return 2
     if args.live_testnet:
         if not args.account or not args.public_key:
             parser.error("live requires --account and --public-key")
