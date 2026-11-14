@@ -33,6 +33,14 @@ python -B audit.py --fixture sample_access_key.json --receiver safe.contract.tes
 
 **Expected:** `POLICY_MATCH_UNVERIFIED`, `USER_SUPPLIED_FIXTURE_NOT_LIVE`, `trade_authorized:false` and exit code 0. A syntactically matching permission is **not approval to spend assets**.
 
+Reviewer receiver IDs and selected testnet accounts must follow NEAR account-ID syntax:
+2–64 lowercase alphanumeric characters with dot, hyphen, or underscore separators only
+between alphanumeric segments (for example, alice.near; not alice..near).
+An invalid reviewer policy produces INVALID_REVIEW_POLICY and exit code 2,
+before any optional live RPC request. Valid-looking names and successful
+policy comparisons still do not verify account existence, key ownership, or
+contract effects.
+
 For an explicitly chosen public testnet account and public key, a separate optional `--live-testnet` mode fetches **one** `view_access_key` query using a pinned provider endpoint, no redirects or ambient proxies. It neither proves RPC authenticity nor identifies who owns the key. The browser demo itself never invokes this network mode.
 
 ## What NEAR contributes
