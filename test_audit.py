@@ -69,6 +69,38 @@ class PermissionAudit(unittest.TestCase):
                 self.assertEqual(r["decision"], "UNVERIFIED_MALFORMED_PERMISSION")
                 self.assertFalse(r["trade_authorized"])
 
+    def test_invalid_near_receiver_identifiers_cannot_match_policy(self):
+        # NEAR requires alphanumerics between all separators, unlike the
+        # original class that accidentally accepted adjacent separators.
+        invalid = ("alice..near", "-alice.near", "alice-.near",
+                   "alice__near", "alice._near", "alice.near-",
+                   "alice.-near", "alice_.near")
+        for account in invalid:
+            with self.subTest(receiver=account):
+                with self.assertRaisesRegex(ValueError, "invalid expected receiver"):
+                    assess_permission(grant(receiver=account), receiver=account,
+                                      allowed_methods=("read_profile",),
+                                      max_gas_allowance_yocto=10**23)
+                report = self.inspect(grant(receiver=account))
+                self.assertEqual(report["decision"], "UNVERIFIED_MALFORMED_PERMISSION")
+                self.assertFalse(report["trade_authorized"])
+
+    def test_invalid_near_testnet_account_is_rejected_before_rpc(self):
+        calls = []
+        for account in ("a..testnet", "-a.testnet", "a_.testnet", "a.testnet-"):
+            with self.subTest(account=account), self.assertRaisesRegex(ValueError, "testnet account required"):
+                fetch_testnet_key(account, KEY, opener=lambda *a, **kw: calls.append((a, kw)))
+        self.assertEqual(calls, [])
+
+    def test_near_allowed_separator_patterns_still_match_syntactically(self):
+        for account in ("alice.testnet", "a-b.near", "a_b.near",
+                        "a.b.near", "ab", "a1-b2_3.testnet"):
+            with self.subTest(receiver=account):
+                report = assess_permission(grant(receiver=account), receiver=account,
+                    allowed_methods=("read_profile",), max_gas_allowance_yocto=10**23)
+                self.assertEqual(report["decision"], "POLICY_MATCH_UNVERIFIED")
+                self.assertFalse(report["trade_authorized"])
+
     def test_bad_policy_does_not_create_approval(self):
         for bad in (True, 10.3, "10000", -1):
             with self.subTest(bad=bad):
@@ -162,6 +194,41 @@ class CliContract(unittest.TestCase):
         self.assertEqual(report["decision"], "POLICY_MATCH_UNVERIFIED")
         self.assertFalse(report["trade_authorized"])
         self.assertEqual(report["data_provenance"], "USER_SUPPLIED_FIXTURE_NOT_LIVE")
+
+    def test_invalid_policy_cli_is_structured_failure_not_exception(self):
+        from contextlib import redirect_stdout
+        from pathlib import Path
+        from unittest.mock import patch
+        fixture = str(Path(__file__).with_name("sample_access_key.json"))
+        options = (("--receiver", "alice..near"), ("--method", "a-b"),
+                   ("--max-gas-yocto", "-1"))
+        for key, invalid in options:
+            with self.subTest(bad_option=key):
+                args = ["--fixture", fixture, "--receiver", RECEIVER,
+                        "--method", "read_profile", "--max-gas-yocto", str(10**23)]
+                args[args.index(key) + 1] = invalid
+                output = io.StringIO()
+                with patch("audit.fetch_testnet_key", side_effect=AssertionError("network accessed")):
+                    with redirect_stdout(output):
+                        code = main(args)
+                self.assertEqual(code, 2)
+                response = json.loads(output.getvalue())
+                self.assertEqual(response["decision"], "INVALID_REVIEW_POLICY")
+                self.assertIs(response["trade_authorized"], False)
+
+    def test_invalid_live_policy_does_not_query_rpc(self):
+        from contextlib import redirect_stdout
+        from unittest.mock import patch
+        args = ["--live-testnet", "--account", ACCOUNT, "--public-key", KEY,
+                "--receiver", "invalid..testnet", "--method", "read_profile",
+                "--max-gas-yocto", str(10**23)]
+        output = io.StringIO()
+        with patch("audit.fetch_testnet_key", side_effect=AssertionError("RPC called")) as fetch:
+            with redirect_stdout(output):
+                code = main(args)
+        self.assertEqual(code, 2)
+        self.assertEqual(json.loads(output.getvalue())["decision"], "INVALID_REVIEW_POLICY")
+        fetch.assert_not_called()
 
     def test_bad_fixture_fails_closed(self):
         from contextlib import redirect_stdout
